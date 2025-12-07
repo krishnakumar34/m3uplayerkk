@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    	<link rel="manifest" href="manifest.json" />
+    <title>KRIS IPTV | Triple Engine Pro</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.4.10/dist/hls.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js"></script>
+    <link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css" />
+    <script src="https://cdn.plyr.io/3.7.8/plyr.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@clappr/player@latest/dist/clappr.min.js"></script>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        :root {
+            --bg-dark: #0f171e;
+            --bg-panel: #151f28;
+            --accent: #00a8e1;
+            --focus: #22303c;
+            --text-main: #ffffff;
+            --text-mute: #8197a4;
+            --border: #2a3847;
+            --plyr-color-main: #00a8e1;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; }
+        
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            height: 50px;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 15px;
+            border-bottom: 1px solid var(--border);
+            z-index: 20;
+        }
+        .logo { font-weight: 800; font-size: 16px; color: var(--accent); letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px; }
+        .btn-icon { background: none; border: none; color: white; font-size: 18px; padding: 10px; cursor: pointer; }
+
+        .mobile-tabs {
+            display: flex;
+            height: 45px;
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            z-index: 10;
+        }
+        .tab {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            color: var(--text-mute);
+            font-weight: 600;
+            text-transform: uppercase;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+        }
+        .tab.active { color: white; border-bottom-color: var(--accent); background: rgba(255,255,255,0.03); }
+
+        .workspace {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .panel {
+            display: none;
+            flex-direction: column;
+            width: 100%;
+            height: 100%;
+            background: var(--bg-panel);
+            border-right: 1px solid var(--border);
+        }
+        .panel.active { display: flex; }
+
+        .search-bar { padding: 10px; border-bottom: 1px solid var(--border); background: var(--bg-dark); }
+        .search-input {
+            width: 100%;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border);
+            color: white;
+            padding: 8px 10px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        
+        .settings-select {
+            width: 100%;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid var(--border);
+            color: white;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+        .settings-select option { background: var(--bg-panel); color: white; }
+
+        .list-container { flex: 1; overflow-y: auto; }
+        .list-container::-webkit-scrollbar { width: 5px; }
+        .list-container::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+        .list-item {
+            padding: 12px 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            transition: background 0.1s;
+        }
+        .list-item:hover { background: var(--focus); }
+        .list-item.selected { background: var(--focus); border-left: 3px solid var(--accent); }
+
+        .item-label { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+        .item-count { font-size: 11px; background: rgba(0,0,0,0.3); padding: 2px 8px; border-radius: 10px; color: var(--text-mute); }
+        .ch-icon { width: 30px; height: 30px; border-radius: 4px; background: rgba(0,0,0,0.3); margin-right: 12px; object-fit: contain; }
+        
+        .player-view {
+            width: 100%;
+            height: 100%;
+            background: black;
+            display: none;
+            position: relative;
+            flex-direction: column;
+        }
+        .player-view.active { display: flex; }
+        
+        #player-container { width: 100%; height: 100%; position: relative; }
+        /* Fix to ensure Clappr fits */
+        #player-container > [data-player] { width: 100% !important; height: 100% !important; }
+        
+        .plyr { height: 100%; width: 100%; }
+        video { object-fit: contain; }
+
+        .empty-msg { 
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            text-align: center; color: var(--text-mute); pointer-events: none; z-index: 0;
+        }
+        .empty-msg i { font-size: 40px; margin-bottom: 15px; opacity: 0.5; }
+
+        .modal {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.9);
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0; pointer-events: none;
+            transition: opacity 0.3s;
+        }
+        .modal.open { opacity: 1; pointer-events: all; }
+        .modal-box {
+            background: var(--bg-panel);
+            width: 90%;
+            max-width: 400px;
+            border-radius: 12px;
+            padding: 20px;
+            border: 1px solid var(--border);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        .modal-title { font-size: 18px; font-weight: bold; margin-bottom: 20px; color: white; display: flex; justify-content: space-between; }
+        
+        .btn {
+            display: block; width: 100%; padding: 12px; margin-bottom: 10px;
+            border: none; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer;
+        }
+        .btn-primary { background: var(--accent); color: white; }
+        .btn-secondary { background: rgba(255,255,255,0.1); color: white; }
+
+        @media (min-width: 768px) {
+            .mobile-tabs { display: none; }
+            .panel { display: flex; }
+            #panel-groups { width: 220px; }
+            #panel-channels { width: 280px; }
+            .player-view { display: flex; flex: 1; }
+            .workspace { flex-direction: row; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="logo"><i class="fas fa-play-circle"></i> KRIS IPTV</div>
+        <button class="btn-icon" onclick="toggleModal(true)"><i class="fas fa-cog"></i></button>
+    </div>
+
+    <div class="mobile-tabs">
+        <div class="tab active" onclick="switchTab('groups')">Groups</div>
+        <div class="tab" onclick="switchTab('channels')">Channels</div>
+        <div class="tab" onclick="switchTab('player')">Player</div>
+    </div>
+
+    <div class="workspace">
+        <div id="panel-groups" class="panel active">
+            <div class="search-bar"><input type="text" class="search-input" placeholder="Filter Groups..." oninput="filterGroups(this.value)"></div>
+            <div class="list-container" id="list-groups"></div>
+        </div>
+
+        <div id="panel-channels" class="panel">
+            <div class="search-bar"><input type="text" class="search-input" placeholder="Search Channels..." oninput="filterChannels(this.value)"></div>
+            <div class="list-container" id="list-channels"><div style="padding: 20px; text-align: center; color: #666; font-size: 13px;">Select a Group</div></div>
+        </div>
+
+        <div id="panel-player" class="player-view">
+            <div class="empty-msg" id="player-placeholder"><i class="fas fa-tv"></i><p>No Channel Selected</p></div>
+            <div id="player-container"></div>
+        </div>
+    </div>
+
+    <div id="settings-modal" class="modal open">
+        <div class="modal-box">
+            <div class="modal-title"><span>Settings</span><i class="fas fa-times" onclick="toggleModal(false)" style="cursor:pointer; font-size: 16px;"></i></div>
+            
+            <label style="font-size:12px; color:#aaa; margin-bottom:5px; display:block;">Select Player Engine:</label>
+            <select id="engine-select" class="settings-select" onchange="changeEngine(this.value)">
+                <option value="artplayer">Artplayer (Recommended)</option>
+                <option value="clappr">Clappr (Fast)</option> <option value="plyr">Plyr (Classic)</option>
+            </select>
+
+            <div style="border-top:1px solid #333; margin: 15px 0;"></div>
+
+            <label style="font-size:12px; color:#aaa; margin-bottom:5px; display:block;">Playlist Source:</label>
+            <input type="file" id="file-upload" accept="*/*" style="display: none;" onchange="handleFileUpload(this)">
+            <button class="btn btn-primary" onclick="document.getElementById('file-upload').click()"><i class="fas fa-folder-open"></i> Upload Local File</button>
+            
+            <div style="text-align:center; margin:10px; color:#555; font-size: 12px;">- OR -</div>
+            
+            <input type="text" id="url-input" class="search-input" placeholder="Paste URL here..." style="margin-bottom:10px;">
+            <button class="btn btn-secondary" onclick="handleUrlLoad()">Load from URL</button>
+            
+            <div id="status-msg" style="margin-top:10px; text-align:center; font-size:12px; color: var(--accent); white-space: pre-wrap;"></div>
+        </div>
+    </div>
+        <script>
+        let db = { groups: [], channels: {}, allChannels: [] };
+        let activePlayer = null; 
+        let activeHls = null; 
+        let playerEngine = localStorage.getItem('kris_engine') || 'artplayer';
+        let currentChannel = null; 
+
+        // Infinite Scroll Variables
+        let currentGroupChannels = [];
+        let renderIndex = 0;
+        const BATCH_SIZE = 50;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const savedUrl = localStorage.getItem('kris_url');
+            if(savedUrl) document.getElementById('url-input').value = savedUrl;
+            document.getElementById('engine-select').value = playerEngine;
+
+            const listContainer = document.getElementById('list-channels');
+            listContainer.addEventListener('scroll', () => {
+                if (listContainer.scrollTop + listContainer.clientHeight >= listContainer.scrollHeight - 300) {
+                    renderBatch();
+                }
+            });
+        });
+
+        function changeEngine(val) {
+            playerEngine = val;
+            localStorage.setItem('kris_engine', val);
+            if (currentChannel) {
+                playChannel(currentChannel);
+            }
+        }
+
+        function playChannel(c) {
+            currentChannel = c;
+            const container = document.getElementById('player-container');
+            document.getElementById('player-placeholder').style.display = 'none';
+
+            // Clean up
+            if (activeHls) { activeHls.destroy(); activeHls = null; }
+            if (activePlayer) {
+                if(typeof activePlayer.destroy === 'function') activePlayer.destroy();
+                activePlayer = null;
+            }
+            container.innerHTML = ''; 
+
+            if(playerEngine === 'artplayer') {
+                initArtplayer(c, container);
+            } else if (playerEngine === 'clappr') {
+                initClappr(c, container);
+            } else {
+                initPlyr(c, container);
+            }
+
+            if(window.innerWidth < 768) switchTab('player');
+        }
+
+        // --- NEW: CLAPPR PLAYER ---
+        function initClappr(c, container) {
+            const isStatic = c.url.match(/\.(mp4|mkv|mov|avi|webm)($|\?)/i);
+            
+            const options = {
+                source: c.url,
+                parentId: "#player-container",
+                width: '100%',
+                height: '100%',
+                autoPlay: true,
+                poster: c.logo || '',
+                hlsjsConfig: { enableWorker: true }
+            };
+
+            // FIX: Forces PHP redirects to play as HLS in Clappr
+            if (!isStatic) {
+                options.mimeType = "application/vnd.apple.mpegurl";
+            }
+
+            activePlayer = new Clappr.Player(options);
+        }
+
+        // --- ORIGINAL: ARTPLAYER (UNTOUCHED FROM kris8.html) ---
+        function initArtplayer(c, container) {
+            const isVOD = c.url.match(/\.(mp4|mkv|mov|avi|webm)($|\?)/i) !== null;
+            activePlayer = new Artplayer({
+                container: container,
+                url: c.url,
+                title: c.name,
+                poster: c.logo || '',
+                volume: 1.0,
+                isLive: !isVOD, 
+                autoplay: true,
+                pip: true,
+                autoSize: true,
+                autoMini: true,
+                fullscreen: true,
+                fullscreenWeb: true,
+                setting: true,
+                flip: true,
+                playbackRate: true,
+                aspectRatio: true,
+                theme: '#00a8e1',
+                customType: {
+                    m3u8: function (video, url, art) {
+                        if (Hls.isSupported()) {
+                            if (activeHls) activeHls.destroy();
+                            const hls = new Hls();
+                            hls.loadSource(url);
+                            hls.attachMedia(video);
+                            activeHls = hls;
+                            hls.on(Hls.Events.MANIFEST_PARSED, function (event, data) {
+                                const levels = hls.levels.map((level, index) => {
+                                    return { html: (level.height || 'Unknown') + 'p', level: index };
+                                });
+                                levels.unshift({ html: 'Auto', level: -1, default: true });
+                                art.setting.update({
+                                    html: 'Quality', width: 200, selector: levels,
+                                    onSelect: function (item) { hls.currentLevel = item.level; return item.html; },
+                                });
+                            });
+                            hls.on(Hls.Events.ERROR, function (event, data) {
+                                if (data.fatal) {
+                                    switch (data.type) {
+                                        case Hls.ErrorTypes.NETWORK_ERROR: hls.startLoad(); break;
+                                        case Hls.ErrorTypes.MEDIA_ERROR: hls.recoverMediaError(); break;
+                                        default: hls.destroy(); break;
+                                    }
+                                }
+                            });
+                        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                            video.src = url;
+                        } else { art.notice.show = 'Unsupported Format'; }
+                    }
+                }
+            });
+        }
+
+        function initPlyr(c, container) {
+            const video = document.createElement('video');
+            video.autoplay = true;
+            video.controls = true;
+            video.playsInline = true;
+            video.crossOrigin = 'anonymous';
+            video.style.width = '100%';
+            video.style.height = '100%';
+            container.appendChild(video);
+
+            if (Hls.isSupported()) {
+                const hls = new Hls();
+                hls.loadSource(c.url);
+                hls.attachMedia(video);
+                activeHls = hls;
+
+                hls.on(Hls.Events.MANIFEST_PARSED, function () { 
+                    video.play().catch(() => { video.muted = true; video.play(); });
+                });
+                hls.on(Hls.Events.ERROR, function (event, data) {
+                    if (data.fatal) {
+                        switch (data.type) {
+                            case Hls.ErrorTypes.NETWORK_ERROR: hls.startLoad(); break;
+                            case Hls.ErrorTypes.MEDIA_ERROR: hls.recoverMediaError(); break;
+                            default: hls.destroy(); break;
+                        }
+                    }
+                });
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                video.src = c.url;
+                video.play();
+            }
+
+            activePlayer = new Plyr(video, {
+                controls: ['play-large', 'play', 'progress', 'current-time', 'mute', 'volume', 'settings', 'pip', 'fullscreen'],
+                autoplay: true,
+                keyboard: { focused: true, global: true }
+            });
+        }
+
+        function parseM3U(data) {
+            const lines = data.split(/\r?\n/);
+            const groups = new Set();
+            const channels = [];
+            let currentName = null, currentLogo = null, currentGroup = "Uncategorized";
+
+            for(let i=0; i<lines.length; i++) {
+                let line = lines[i].trim();
+                if(!line) continue;
+                if(line.startsWith("#EXTINF:")) {
+                    const info = line.substring(8);
+                    const logoMatch = info.match(/tvg-logo="([^"]*)"/);
+                    if(logoMatch) currentLogo = logoMatch[1];
+                    const groupMatch = info.match(/group-title="([^"]*)"/);
+                    if(groupMatch) currentGroup = groupMatch[1];
+                    const lastComma = line.lastIndexOf(',');
+                    if(lastComma !== -1) currentName = line.substring(lastComma + 1).trim();
+                } else if(!line.startsWith("#")) {
+                    const url = line;
+                    if(url.length > 5) {
+                        channels.push({
+                            name: currentName || "Channel " + (channels.length+1),
+                            logo: currentLogo || "",
+                            group: currentGroup,
+                            url: url
+                        });
+                        groups.add(currentGroup);
+                        currentName = null; currentLogo = null; currentGroup = "Uncategorized";
+                    }
+                }
+            }
+            return { groups: Array.from(groups).sort(), channels: channels };
+        }
+
+        function loadData(parsedData) {
+            if(parsedData.channels.length === 0) {
+                document.getElementById('status-msg').innerText = "Error: Found 0 Channels.";
+                return;
+            }
+            db.allChannels = parsedData.channels;
+            db.groups = parsedData.groups;
+            const groupList = document.getElementById('list-groups');
+            groupList.innerHTML = '';
+            
+            db.groups.forEach(g => {
+                const count = db.allChannels.filter(c => c.group === g).length;
+                const div = document.createElement('div');
+                div.className = 'list-item';
+                div.innerHTML = `<span class="item-label">${g}</span> <span class="item-count">${count}</span>`;
+                div.onclick = () => selectGroup(g, div);
+                groupList.appendChild(div);
+            });
+            document.getElementById('status-msg').innerText = `Success! Loaded ${parsedData.channels.length} channels.`;
+            setTimeout(() => toggleModal(false), 1000);
+            if(window.innerWidth < 768) switchTab('groups');
+        }
+
+        function selectGroup(groupName, element) {
+            document.querySelectorAll('#list-groups .list-item').forEach(e => e.classList.remove('selected'));
+            if(element) element.classList.add('selected');
+            
+            currentGroupChannels = db.allChannels.filter(c => c.group === groupName);
+            renderIndex = 0;
+            const channelList = document.getElementById('list-channels');
+            channelList.innerHTML = '';
+            renderBatch();
+            
+            if(window.innerWidth < 768) switchTab('channels');
+        }
+
+        function renderBatch() {
+            const list = document.getElementById('list-channels');
+            const fragment = document.createDocumentFragment();
+            const nextLimit = Math.min(renderIndex + BATCH_SIZE, currentGroupChannels.length);
+            
+            if (renderIndex >= currentGroupChannels.length) return;
+
+            for (let i = renderIndex; i < nextLimit; i++) {
+                const ch = currentGroupChannels[i];
+                const div = document.createElement('div');
+                div.className = 'list-item';
+                div.innerHTML = `<img src="${ch.logo || 'https://via.placeholder.com/30'}" class="ch-icon" onerror="this.style.display='none'"><span class="item-label">${ch.name}</span>`;
+                div.onclick = () => {
+                    document.querySelectorAll('#list-channels .list-item').forEach(e => e.classList.remove('selected'));
+                    div.classList.add('selected');
+                    playChannel(ch);
+                };
+                fragment.appendChild(div);
+            }
+            list.appendChild(fragment);
+            renderIndex = nextLimit;
+        }
+
+        function handleFileUpload(input) {
+            const file = input.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => loadData(parseM3U(e.target.result));
+            reader.readAsText(file);
+        }
+
+        async function handleUrlLoad() {
+            const url = document.getElementById('url-input').value.trim();
+            if(!url) return;
+            localStorage.setItem('kris_url', url);
+            document.getElementById('status-msg').innerText = "Downloading...";
+            try {
+                const res = await fetch(url);
+                if(res.ok) {
+                    const text = await res.text();
+                    loadData(parseM3U(text));
+                } else { throw new Error("Error"); }
+            } catch(e) { document.getElementById('status-msg').innerText = "Load Failed. Try local file."; }
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            const tabs = Array.from(document.querySelectorAll('.tab'));
+            const active = tabs.find(t => t.innerText.toLowerCase().includes(tab));
+            if(active) active.classList.add('active');
+            if(window.innerWidth < 768) {
+                document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+                document.getElementById('panel-player').classList.remove('active');
+                if(tab === 'groups') document.getElementById('panel-groups').classList.add('active');
+                if(tab === 'channels') document.getElementById('panel-channels').classList.add('active');
+                if(tab === 'player') document.getElementById('panel-player').classList.add('active');
+            }
+        }
+        
+        function toggleModal(show) {
+            const m = document.getElementById('settings-modal');
+            show ? m.classList.add('open') : m.classList.remove('open');
+            document.getElementById('status-msg').innerText = "";
+        }
+
+        function filterGroups(val) {
+            document.querySelectorAll('#list-groups .list-item').forEach(item => {
+                const text = item.querySelector('.item-label').innerText.toLowerCase();
+                item.style.display = text.includes(val.toLowerCase()) ? 'flex' : 'none';
+            });
+        }
+        function filterChannels(val) {
+            document.querySelectorAll('#list-channels .list-item').forEach(item => {
+                const text = item.querySelector('.item-label').innerText.toLowerCase();
+                item.style.display = text.includes(val.toLowerCase()) ? 'flex' : 'none';
+            });
+        }
+    </script>
+</body>
+</html>
